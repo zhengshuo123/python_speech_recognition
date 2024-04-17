@@ -1,0 +1,2 @@
+# python_speech_recognition
+python调用百度标准版语音识别接口API，实现按下鼠标中键快捷语音识别，并输入到光标处
