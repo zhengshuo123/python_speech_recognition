@@ -9,6 +9,8 @@ from pynput.mouse import Controller as MouseController
 import pyaudio
 from pystray import MenuItem as item, Icon as tray_icon
 from PIL import Image
+import winreg as reg
+import os
 
 # 全局变量定义
 API_KEY = 'cPSZi0gXaOSjt8Bkpz8ViRHG'
@@ -26,9 +28,51 @@ ROOT.attributes('-topmost', True)  # 窗口置顶
 ROOT.withdraw()  # 初始隐藏窗口
 STREAM_ACTIVE_LOCK = threading.Lock()  # 添加一个锁
 
+def get_application_path():
+    """获取当前执行的程序的路径。"""
+    if getattr(sys, 'frozen', False):
+        # 如果程序是被打包的，返回打包后的执行文件路径
+        return os.path.dirname(sys.executable)
+    else:
+        # 如果程序是直接从脚本运行的，返回脚本文件的路径
+        return os.path.dirname(os.path.abspath(__file__))
+
+def add_to_startup():
+    """将应用程序添加到Windows启动项中"""
+    app_name = "VoiceAssistant"  # 应用程序名称
+    app_path = os.path.join(get_application_path(), 'VoiceAssistant.exe')  # 假设可执行文件名是VoiceAssistant.exe
+    # 打开注册表的“Run”键，设置启动项
+    try:
+        key = reg.HKEY_CURRENT_USER
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        registry_key = reg.OpenKey(key, key_path, 0, reg.KEY_WRITE)
+        reg.SetValueEx(registry_key, app_name, 0, reg.REG_SZ, f'"{app_path}"')
+        reg.CloseKey(registry_key)
+        print("VoiceAssistant 已添加到开机启动。")
+    except WindowsError as e:
+        print(f"添加到开机启动失败: {e}")
+
+def remove_from_startup():
+    """从Windows启动项中移除应用程序"""
+    app_name = "VoiceAssistant"  # 应用程序名称
+    try:
+        key = reg.HKEY_CURRENT_USER
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        registry_key = reg.OpenKey(key, key_path, 0, reg.KEY_WRITE)
+        reg.DeleteValue(registry_key, app_name)
+        reg.CloseKey(registry_key)
+        print("VoiceAssistant 已从开机启动移除。")
+    except WindowsError as e:
+        print(f"移除开机启动失败: {e}")
+
 def create_image():
     """加载图像文件作为系统托盘图标"""
-    image = Image.open('mic_icon.png')  # 图像文件路径
+    # 使用get_application_path()函数获取当前执行程序的路径
+    app_path = get_application_path()
+    # 构建图像文件的绝对路径
+    image_path = os.path.join(app_path, 'mic_icon.png')
+    # 使用绝对路径加载图像
+    image = Image.open(image_path)
     return image
 
 def setup(icon):
@@ -38,8 +82,12 @@ def setup(icon):
 def show_icon():
     """在系统托盘创建图标"""
     image = create_image()
-    menu = (item('退出', exit_application),)
-    icon = tray_icon('test', image, 'My Icon', menu)
+    menu = (
+        item('启动开机自启', add_to_startup),
+        item('关闭开机自启', remove_from_startup),
+        item('退出 VoiceAssistant', exit_application),
+    )
+    icon = tray_icon('VoiceAssistant', image, 'VoiceAssistant', menu)
     icon.run(setup)
 
 def exit_application(icon, item):
