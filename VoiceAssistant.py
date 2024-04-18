@@ -223,7 +223,7 @@ def show_mic_icon():
     """在鼠标当前位置显示麦克风图标"""
     mouse = MouseController()
     x, y = mouse.position
-    ROOT.geometry(f'+{int(x + 20)}+{int(y + 20)}')
+    ROOT.geometry(f'+{int(x + 15)}+{int(y + 15)}')
     ROOT.deiconify()
 
 def hide_mic_icon():
