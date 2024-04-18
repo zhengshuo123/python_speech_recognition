@@ -28,6 +28,7 @@ ROOT.overrideredirect(True)  # 设置无边框窗口
 ROOT.attributes('-topmost', True)  # 窗口置顶
 ROOT.withdraw()  # 初始隐藏窗口
 STREAM_ACTIVE_LOCK = threading.Lock()  # 添加一个锁
+global_icon = None  # 全局变量用于存储托盘图标实例
 
 def get_application_path():
     """获取当前执行的程序的路径。"""
@@ -82,28 +83,36 @@ def setup(icon):
 
 def show_icon():
     """在系统托盘创建图标"""
+    global global_icon
     image = create_image()
     menu = (
         item('启动开机自启', add_to_startup),
         item('关闭开机自启', remove_from_startup),
         item('退出 VoiceAssistant', exit_application),
     )
-    icon = tray_icon('VoiceAssistant', image, 'VoiceAssistant', menu)
-    icon.run(setup)
+    global_icon = tray_icon('VoiceAssistant', image, 'ACCESS_TOKEN获取中...', menu)
+    global_icon.run(setup)
+
 
 def exit_application(icon, item):
     """退出应用程序，关闭所有资源"""
     print("退出程序...")
     icon.stop()  # 停止图标
-    ROOT.after(0, close_gui)  # 主线程中执行GUI关闭
+    try:
+        ROOT.after(0, close_gui)  # 主线程中执行GUI关闭
+    except Exception as e:
+        print(f"尝试关闭GUI时发生异常: {e}")
+        print("采取强制退出策略...")
+        os._exit(1)  # 使用非零状态码强制退出，表示异常退出
 
 def close_gui():
     """关闭GUI和音频资源"""
     global STREAM_ACTIVE
-    if STREAM_ACTIVE:
-        STREAM.stop_stream()
-        STREAM.close()
-        STREAM_ACTIVE = False  # 确保状态更新
+    with STREAM_ACTIVE_LOCK:
+        if STREAM_ACTIVE:
+            STREAM.stop_stream()
+            STREAM.close()
+            STREAM_ACTIVE = False  # 确保状态更新
     P.terminate()  # 关闭PyAudio实例
     ROOT.quit()  # 退出Tkinter主循环
     ROOT.destroy()  # 销毁所有Tkinter资源
@@ -120,6 +129,9 @@ def get_access_token():
         try:
             response = requests.get(url, params=params)
             response.raise_for_status()  # 检查响应状态码是否表示错误
+            if global_icon:
+                global_icon.title = 'VoiceAssistant'
+                global_icon.update_menu()
             return response.json().get('access_token')
         except requests.exceptions.HTTPError as e:
             print(f"HTTP请求错误:{e}")
@@ -132,8 +144,10 @@ def get_access_token():
         except Exception as e:
             print(f"未知错误：{e}")
         print("无法获取访问令牌,5秒后重试...")
+        if global_icon:
+            global_icon.title = 'ACCESS_TOKEN获取失败'
+            global_icon.update_menu()
         time.sleep(5)  # 重试前等待5秒
-
 
 def recognize_speech_from_stream(stream_data):
     """使用百度语音识别API识别音频流"""
@@ -208,15 +222,15 @@ def stop_recording_without_recognizing():
 def record_stream():
     """从麦克风记录音频"""
     global STREAM, FRAMES, STREAM_ACTIVE
-    STREAM = P.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
     with STREAM_ACTIVE_LOCK:
+        STREAM = P.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
         STREAM_ACTIVE = True  # 使用锁来保护状态变更
     while RECORDING:
         data = STREAM.read(1024, exception_on_overflow=False)
         FRAMES.append(data)
-    STREAM.stop_stream()
-    STREAM.close()
     with STREAM_ACTIVE_LOCK:
+        STREAM.stop_stream()
+        STREAM.close()
         STREAM_ACTIVE = False  # 使用锁来保护状态变更
 
 def show_mic_icon():
@@ -233,14 +247,12 @@ def hide_mic_icon():
 def main():
     """程序主入口，启动应用程序并显示托盘图标"""
     global ACCESS_TOKEN
-    ACCESS_TOKEN = get_access_token()
-    if not ACCESS_TOKEN:
-        sys.exit("获取访问令牌失败，程序退出。")
-    listener = mouse.Listener(on_click=on_click)
-    listener.start()
     icon_thread = threading.Thread(target=show_icon)
     icon_thread.daemon = True
     icon_thread.start()  # 运行托盘图标的线程
+    ACCESS_TOKEN = get_access_token()
+    listener = mouse.Listener(on_click=on_click)
+    listener.start()
     canvas = tk.Canvas(ROOT, width=15, height=15, bg='cyan', highlightthickness=0)
     canvas.pack()
     ROOT.mainloop()
