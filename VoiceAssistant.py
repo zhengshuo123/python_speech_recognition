@@ -11,6 +11,7 @@ from pystray import MenuItem as item, Icon as tray_icon
 from PIL import Image
 import winreg as reg
 import os
+import time
 
 # 全局变量定义
 API_KEY = 'cPSZi0gXaOSjt8Bkpz8ViRHG'
@@ -108,28 +109,30 @@ def close_gui():
     ROOT.destroy()  # 销毁所有Tkinter资源
 
 def get_access_token():
-    """从百度API获取访问令牌"""
+    """从百度API获取访问令牌,失败时重试直到成功为止"""
     url = 'https://aip.baidubce.com/oauth/2.0/token'
     params = {
         'grant_type': 'client_credentials',
         'client_id': API_KEY,
         'client_secret': SECRET_KEY
     }
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()  # 检查响应状态码是否表示错误
-        return response.json().get('access_token')
-    except requests.exceptions.HTTPError as e:
-        print(f"HTTP请求错误:{e}")
-    except requests.exceptions.ConnectionError as e:
-        print("网络连接错误，请检查网络连接。")
-    except requests.exceptions.Timeout as e:
-        print("请求超时，请检查网络连接或稍后再试。")
-    except requests.exceptions.RequestException as e:
-        print(f"请求异常：{e}")
-    except Exception as e:
-        print(f"未知错误：{e}")
-    return None
+    while True:
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()  # 检查响应状态码是否表示错误
+            return response.json().get('access_token')
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP请求错误:{e}")
+        except requests.exceptions.ConnectionError as e:
+            print("网络连接错误，请检查网络连接。")
+        except requests.exceptions.Timeout as e:
+            print("请求超时，请检查网络连接或稍后再试。")
+        except requests.exceptions.RequestException as e:
+            print(f"请求异常：{e}")
+        except Exception as e:
+            print(f"未知错误：{e}")
+        print("无法获取访问令牌,5秒后重试...")
+        time.sleep(5)  # 重试前等待5秒
 
 
 def recognize_speech_from_stream(stream_data):
@@ -164,7 +167,10 @@ def on_click(x, y, button, pressed):
         if not RECORDING:
             start_recording()
         else:
-            stop_recording()
+            stop_recording()  # 停止录音并开始识别
+    elif button == mouse.Button.right and pressed:
+        if RECORDING:
+            stop_recording_without_recognizing()
 
 def start_recording():
     """开始录音"""
@@ -190,6 +196,14 @@ def stop_recording():
     else:
         print("无法识别或未获得结果")
     hide_mic_icon()
+
+def stop_recording_without_recognizing():
+    """停止录音但不进行语音识别处理"""
+    global RECORDING, FRAMES
+    print("停止录音，本次录音将不进行识别...")
+    RECORDING = False
+    FRAMES = []  # 清空录音缓存，避免后续误操作处理旧数据
+    hide_mic_icon()  # 隐藏麦克风图标
 
 def record_stream():
     """从麦克风记录音频"""
@@ -227,7 +241,7 @@ def main():
     icon_thread = threading.Thread(target=show_icon)
     icon_thread.daemon = True
     icon_thread.start()  # 运行托盘图标的线程
-    canvas = tk.Canvas(ROOT, width=20, height=20, bg='red', highlightthickness=0)
+    canvas = tk.Canvas(ROOT, width=15, height=15, bg='cyan', highlightthickness=0)
     canvas.pack()
     ROOT.mainloop()
 
