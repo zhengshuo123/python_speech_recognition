@@ -12,10 +12,9 @@ from PIL import Image
 import winreg as reg
 import os
 import time
+import configparser
 
 # 全局变量定义
-API_KEY = 'cPSZi0gXaOSjt8Bkpz8ViRHG'
-SECRET_KEY = 'c9MUo9eqrhRvZdrqBN8Os6VRfeIIyMOp'
 ACCESS_TOKEN = None  # 百度API的访问令牌
 KEYBOARD_CONTROLLER = KeyboardController()  # 键盘输入模拟器
 RECORDING = False  # 录音状态标记
@@ -93,7 +92,6 @@ def show_icon():
     global_icon = tray_icon('VoiceAssistant', image, 'ACCESS_TOKEN获取中...', menu)
     global_icon.run(setup)
 
-
 def exit_application(icon, item):
     """退出应用程序，关闭所有资源"""
     print("退出程序...")
@@ -117,13 +115,28 @@ def close_gui():
     ROOT.quit()  # 退出Tkinter主循环
     ROOT.destroy()  # 销毁所有Tkinter资源
 
+def load_credentials():
+    """从配置文件加载 API_KEY 和 SECRET_KEY"""
+    config = configparser.ConfigParser()
+    # 使用get_application_path()函数获取当前执行程序的路径
+    app_path = get_application_path()
+    # 构建配置文件的绝对路径
+    config_path = os.path.join(app_path, 'config.ini')
+    # 读取配置文件
+    config.read(config_path)
+    # 从配置文件中获取 API_KEY 和 SECRET_KEY
+    api_key = config.get('Credentials', 'API_KEY')
+    secret_key = config.get('Credentials', 'SECRET_KEY')
+    return api_key, secret_key
+
 def get_access_token():
     """从百度API获取访问令牌,失败时重试直到成功为止"""
     url = 'https://aip.baidubce.com/oauth/2.0/token'
+    api_key, secret_key = load_credentials()  # 加载密钥
     params = {
         'grant_type': 'client_credentials',
-        'client_id': API_KEY,
-        'client_secret': SECRET_KEY
+        'client_id': api_key,
+        'client_secret': secret_key
     }
     while True:
         try:
