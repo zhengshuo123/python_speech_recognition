@@ -9,6 +9,7 @@ pip install requests pyaudio pynput Pillow pystray pyinstaller
 [百度短语音识别标准版](https://cloud.baidu.com/product/speech/asr)
 - 点击立即使用 → 免费尝鲜 → 勾选短语音识别-中文普通话 → 0元领取 → 前往应用列表
 - 创建应用 → 勾选短语音识别 → 填写信息 → 立即创建
+
 修改修改config.ini配置文件中的API_KEY和SECRET_KEY
 # 打包
 ```shell
