@@ -1,5 +1,5 @@
 # python_speech_recognition
-python调用百度短语音识别标准版API接口，实现按下鼠标中键快捷语音识别，并输入到光标处
+python调用百度短语音识别标准版API接口，实现按下鼠标中键快捷语音识别，并输入到光标处（仅支持windows）
 # 安装依赖
 python 3.10.11（已测试）
 ```shell 
