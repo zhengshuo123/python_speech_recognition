@@ -15,19 +15,20 @@ import time
 import configparser
 
 # 全局变量定义
-ACCESS_TOKEN = None  # 百度API的访问令牌
-KEYBOARD_CONTROLLER = KeyboardController()  # 键盘输入模拟器
-RECORDING = False  # 录音状态标记
-STREAM = None  # PyAudio流对象
-STREAM_ACTIVE = False  # 流激活状态标记
-FRAMES = []  # 音频帧存储列表
-P = pyaudio.PyAudio()  # 创建PyAudio实例
-ROOT = tk.Tk()  # 创建Tkinter主窗口实例
-ROOT.overrideredirect(True)  # 设置无边框窗口
-ROOT.attributes('-topmost', True)  # 窗口置顶
-ROOT.withdraw()  # 初始隐藏窗口
-STREAM_ACTIVE_LOCK = threading.Lock()  # 添加一个锁
-global_icon = None  # 全局变量用于存储托盘图标实例
+ACCESS_TOKEN = None  # 用于存储从百度API获取的访问令牌，初始化为None
+KEYBOARD_CONTROLLER = KeyboardController()  # 键盘模拟器，用于模拟键盘输入
+RECORDING = False  # 录音状态标记，用于指示当前是否正在进行录音
+STREAM = None  # PyAudio流对象，用于音频录制，初始化为None
+STREAM_ACTIVE = False  # 指示音频流是否已激活的布尔值标记
+FRAMES = []  # 音频帧存储列表，用于收集从麦克风捕获的音频数据
+P = pyaudio.PyAudio()  # 创建PyAudio实例，用于管理音频流
+ROOT = tk.Tk()  # 创建Tkinter的主窗口实例，用于GUI交互
+ROOT.overrideredirect(True)  # 设置窗口为无边框，通常用于自定义窗口布局
+ROOT.attributes('-topmost', True)  # 确保窗口总是位于其他窗口的顶部
+ROOT.withdraw()  # 初始时隐藏窗口，窗口在需要时才显示，增强用户体验
+STREAM_ACTIVE_LOCK = threading.Lock()  # 线程锁，用于同步访问和修改STREAM_ACTIVE状态
+STREAM_ACCESS_LOCK = threading.Lock()  # 线程锁，用于控制对音频流的同步访问，确保线程安全
+global_icon = None  # 用于存储系统托盘图标的实例，初始状态为None，用于托盘图标的显示和管理
 
 def get_application_path():
     """获取当前执行的程序的路径。"""
@@ -238,9 +239,10 @@ def record_stream():
     with STREAM_ACTIVE_LOCK:
         STREAM = P.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
         STREAM_ACTIVE = True  # 使用锁来保护状态变更
-    while RECORDING:
-        data = STREAM.read(1024, exception_on_overflow=False)
-        FRAMES.append(data)
+    with STREAM_ACCESS_LOCK:
+        while RECORDING:
+            data = STREAM.read(1024, exception_on_overflow=False)
+            FRAMES.append(data)
     with STREAM_ACTIVE_LOCK:
         STREAM.stop_stream()
         STREAM.close()
